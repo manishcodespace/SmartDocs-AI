@@ -3,6 +3,7 @@ import shutil
 import tempfile
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pypdf import PdfReader
 
@@ -17,6 +18,17 @@ from langchain_community.vectorstores import FAISS
 app = FastAPI(
     title="PDF Chat API",
     description="A simple API that allows uploading a PDF and asking questions from it."
+)
+
+# Allow all origins during development.
+# For production, replace ["*"] with your specific frontend domain(s),
+# e.g. ["https://yourfrontend.com", "http://localhost:3000"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
 )
 
 @app.get("/", response_class=FileResponse)

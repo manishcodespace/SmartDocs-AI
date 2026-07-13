@@ -12,7 +12,7 @@ load_dotenv()
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain_community.vectorstores import InMemoryVectorStore
+from langchain_community.vectorstores import FAISS
 
 app = FastAPI(
     title="PDF Chat API",
@@ -133,8 +133,9 @@ async def chat_pdf(
         embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-2-preview")
         embeddings = GoogleGenerativeAIEmbeddings(model=embedding_model)
 
-        # Set up InMemoryVectorStore and index the chunks
-        vector_db = InMemoryVectorStore.from_documents(
+        # Build a FAISS index over the document chunks (per-request, in-process)
+        # FAISS uses optimized C++ ANN search — production-grade for CPU deployments
+        vector_db = FAISS.from_documents(
             documents=split_docs,
             embedding=embeddings
         )

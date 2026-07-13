@@ -6,4 +6,5 @@ python-dotenv
 pypdf
 fastapi
 python-multipart
-uvicorn
+uvicorn
+faiss-cpu

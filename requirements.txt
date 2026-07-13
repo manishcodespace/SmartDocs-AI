@@ -4,3 +4,6 @@ langchain-community
 langchain-text-splitters
 python-dotenv
 pypdf
+fastapi
+python-multipart
+uvicorn

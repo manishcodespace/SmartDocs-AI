@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartDocs AI - Chat with PDF</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #080710;
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.06);
+            --card-border-focus: rgba(138, 43, 226, 0.4);
+            
+            --text-primary: #ffffff;
+            --text-secondary: #a3a3c2;
+            
+            --primary-gradient: linear-gradient(135deg, #7f00ff 0%, #ff007f 100%);
+            --secondary-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            --glow-color: rgba(127, 0, 255, 0.2);
+            --accent-green: #00e676;
+            
+            --font-main: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-main);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Ambient Glow Blobs */
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            filter: blur(120px);
+            z-index: 0;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+        .blob-1 {
+            background: #7f00ff;
+            top: -10%;
+            left: -10%;
+        }
+        .blob-2 {
+            background: #ff007f;
+            bottom: -10%;
+            right: -10%;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            padding: 30px;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #a3a3c2, #ff007f);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        /* Glassmorphic Grid Dashboard */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 25px;
+        }
+
+        @media (max-width: 850px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 35px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(
+                to right,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.03) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            transform: skewX(-25deg);
+            transition: 0.75s;
+            pointer-events: none;
+        }
+
+        .card:hover::before {
+            left: 120%;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 0 40px var(--glow-color);
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title svg {
+            width: 24px;
+            height: 24px;
+            stroke: #ff007f;
+        }
+
+        /* Upload Area Design */
+        .upload-area {
+            border: 2px dashed var(--card-border);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #7f00ff;
+            background: rgba(127, 0, 255, 0.05);
+            box-shadow: 0 0 20px rgba(127, 0, 255, 0.1) inset;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover .upload-icon {
+            transform: translateY(-5px);
+            background: rgba(127, 0, 255, 0.15);
+        }
+
+        .upload-icon svg {
+            width: 32px;
+            height: 32px;
+            fill: none;
+            stroke: var(--text-secondary);
+            transition: stroke 0.3s ease;
+        }
+
+        .upload-area:hover .upload-icon svg {
+            stroke: #ff007f;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .upload-text span {
+            color: var(--text-primary);
+            font-weight: 500;
+            text-decoration: underline;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* File Selected State */
+        .file-info {
+            display: none;
+            width: 100%;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            margin-top: 20px;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .file-info-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 230, 118, 0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-green);
+        }
+
+        .file-details {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .file-name {
+            font-weight: 500;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-primary);
+        }
+
+        .file-size {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .remove-file {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .remove-file:hover {
+            color: #ff3366;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 15px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            resize: none;
+            outline: none;
+            transition: all 0.3s ease;
+            line-height: 1.5;
+        }
+
+        textarea:focus {
+            border-color: #7f00ff;
+            background: rgba(255, 255, 255, 0.04);
+            box-shadow: 0 0 15px rgba(127, 0, 255, 0.2);
+        }
+
+        /* Custom Button styling */
+        .btn {
+            width: 100%;
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 14px;
+            padding: 16px 20px;
+            color: white;
+            font-weight: 600;
+            font-size: 1.05rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 15px rgba(255, 0, 127, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .btn:hover::after {
+            opacity: 1;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 0, 127, 0.5), 0 0 20px rgba(127, 0, 255, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            background: #2a2a35;
+            color: #555566;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Results / Answer Styling */
+        .response-container {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            animation: slideUp 0.5s ease cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+            height: 100%;
+        }
+
+        .response-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 25px;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #e2e2ec;
+            white-space: pre-wrap;
+            position: relative;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .response-box::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .response-box::-webkit-scrollbar-thumb {
+            background: var(--card-border);
+            border-radius: 4px;
+        }
+
+        .response-box::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Pulse / Loader animations */
+        .spinner {
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        .placeholder-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 250px;
+            text-align: center;
+            color: var(--text-secondary);
+            gap: 15px;
+        }
+
+        .placeholder-state svg {
+            width: 64px;
+            height: 64px;
+            stroke: var(--card-border);
+            animation: float 4s ease-in-out infinite;
+        }
+
+        /* Animations */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Glow details */
+        .glowing-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--primary-gradient);
+        }
+
+        .success-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(0, 230, 118, 0.1);
+            color: var(--accent-green);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="container">
+        <header>
+            <h1>SmartDocs AI</h1>
+            <p>Upload a document and get instant, context-aware answers to your questions.</p>
+        </header>
+
+        <div class="dashboard">
+            <!-- Left Panel: File Upload & Ask Form -->
+            <div class="card">
+                <div class="glowing-bar"></div>
+                <h2 class="card-title">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                    </svg>
+                    Source Document
+                </h2>
+
+                <div class="form-group">
+                    <label>Upload PDF</label>
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
+                        <div class="upload-text" id="upload-text">
+                            <span>Click to browse</span> or drag & drop<br>your PDF document here
+                        </div>
+                        <input type="file" id="file-input" class="file-input" accept="application/pdf">
+                    </div>
+
+                    <div class="file-info" id="file-info">
+                        <div class="file-info-icon">
+                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div class="file-details">
+                            <div class="file-name" id="file-name">document.pdf</div>
+                            <div class="file-size" id="file-size">0 KB</div>
+                        </div>
+                        <button class="remove-file" id="remove-file" title="Remove file">
+                            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 25px;">
+                    <label for="question">Your Question</label>
+                    <textarea id="question" placeholder="Ask anything about the content of the PDF... e.g., 'Summary of key objectives'"></textarea>
+                </div>
+
+                <button class="btn" id="submit-btn" disabled>
+                    <span class="spinner" id="btn-spinner"></span>
+                    <span id="btn-text">Ask Document</span>
+                </button>
+            </div>
+
+            <!-- Right Panel: AI Answer -->
+            <div class="card" style="display: flex; flex-direction: column;">
+                <div class="glowing-bar" style="background: var(--secondary-gradient);"></div>
+                <h2 class="card-title">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="stroke: #00f2fe;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.187-5.096A9.75 9.75 0 109.813 15.904z" />
+                    </svg>
+                    Assistant Response
+                </h2>
+
+                <!-- Placeholder Empty State -->
+                <div class="placeholder-state" id="placeholder-state">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    <p style="font-size: 1rem; max-width: 250px;">Upload a PDF and submit a question to see the response here.</p>
+                </div>
+
+                <!-- Answer Output Area -->
+                <div class="response-container" id="response-container">
+                    <div class="response-box" id="response-box"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="success-badge" id="source-badge">
+                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Verified Context
+                        </div>
+                        <span id="response-time" style="font-size: 0.8rem; color: var(--text-secondary)"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const fileSize = document.getElementById('file-size');
+        const removeFileBtn = document.getElementById('remove-file');
+        const questionInput = document.getElementById('question');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnSpinner = document.getElementById('btn-spinner');
+        const btnText = document.getElementById('btn-text');
+        const placeholderState = document.getElementById('placeholder-state');
+        const responseContainer = document.getElementById('response-container');
+        const responseBox = document.getElementById('response-box');
+        const responseTime = document.getElementById('response-time');
+        
+        let selectedFile = null;
+
+        // Sync button disabled state
+        function updateBtnState() {
+            submitBtn.disabled = !(selectedFile && questionInput.value.trim().length > 0);
+        }
+
+        questionInput.addEventListener('input', updateBtnState);
+
+        // Upload Area Interactions
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (file.type !== 'application/pdf' && !file.name.toLowerCase().endswith('.pdf')) {
+                alert('Please upload a PDF file only.');
+                return;
+            }
+            selectedFile = file;
+            fileName.textContent = file.name;
+            
+            // Format size
+            const sizeKB = (file.size / 1024).toFixed(1);
+            fileSize.textContent = sizeKB > 1024 
+                ? (sizeKB / 1024).toFixed(1) + ' MB' 
+                : sizeKB + ' KB';
+
+            uploadArea.style.display = 'none';
+            fileInfo.style.display = 'flex';
+            updateBtnState();
+        }
+
+        removeFileBtn.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            uploadArea.style.display = 'flex';
+            fileInfo.style.display = 'none';
+            updateBtnState();
+        });
+
+        // Submit to API
+        submitBtn.addEventListener('click', async () => {
+            if (!selectedFile || questionInput.value.trim().length === 0) return;
+
+            const startTime = Date.now();
+            
+            // Loading State
+            submitBtn.disabled = true;
+            btnSpinner.style.display = 'block';
+            btnText.textContent = 'Processing PDF...';
+            questionInput.disabled = true;
+            removeFileBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('question', questionInput.value.trim());
+
+            try {
+                const response = await fetch('/api/chat-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    placeholderState.style.display = 'none';
+                    responseContainer.style.display = 'flex';
+                    
+                    // Simple simulated type-writer effect for UI delight
+                    animateText(result.answer, responseBox);
+                    
+                    const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+                    responseTime.textContent = `Processed in ${durationSec}s`;
+                } else {
+                    alert(`Error: ${result.detail || 'Failed to process request.'}`);
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error connecting to the API server.');
+            } finally {
+                // Restore button
+                submitBtn.disabled = false;
+                btnSpinner.style.display = 'none';
+                btnText.textContent = 'Ask Document';
+                questionInput.disabled = false;
+                removeFileBtn.disabled = false;
+                updateBtnState();
+            }
+        });
+
+        function animateText(text, container) {
+            container.textContent = '';
+            let i = 0;
+            // Write chunks of text at a time for efficiency, or simple character by character
+            const speed = text.length > 500 ? 5 : 15;
+            
+            function typeWriter() {
+                if (i < text.length) {
+                    // Check if it's multiple chars to make it look smooth for long text
+                    const chunk = text.substr(i, text.length > 300 ? 4 : 1);
+                    container.textContent += chunk;
+                    i += chunk.length;
+                    container.scrollTop = container.scrollHeight;
+                    setTimeout(typeWriter, speed);
+                }
+            }
+            typeWriter();
+        }
+    </script>
+</body>
+</html>

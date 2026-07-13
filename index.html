@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,226 +8,257 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Manrope:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
     <style>
         :root {
-            --bg-color: #080710;
-            --card-bg: rgba(255, 255, 255, 0.03);
-            --card-border: rgba(255, 255, 255, 0.06);
-            --card-border-focus: rgba(138, 43, 226, 0.4);
-            
-            --text-primary: #ffffff;
-            --text-secondary: #a3a3c2;
-            
-            --primary-gradient: linear-gradient(135deg, #7f00ff 0%, #ff007f 100%);
-            --secondary-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-            --glow-color: rgba(127, 0, 255, 0.2);
-            --accent-green: #00e676;
-            
-            --font-main: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+            /* Warm paper palette — a reading-room, not a nightclub */
+            --bg: #F7F5F0;
+            --surface: #FFFFFF;
+            --surface-sunken: #F1EEE6;
+            --border: #E4DFD3;
+            --border-strong: #D3CCBB;
+
+            --ink: #201D1A;
+            --ink-soft: #6E6A61;
+            --ink-faint: #A39D8F;
+
+            --accent: #1F3A5F;
+            /* deep indigo-navy */
+            --accent-soft: rgba(31, 58, 95, 0.07);
+            --accent-hover: #16283F;
+
+            --brass: #A9803F;
+            /* warm brass — used sparingly */
+            --brass-soft: rgba(169, 128, 63, 0.12);
+
+            --success: #2E6B4F;
+            --success-soft: rgba(46, 107, 79, 0.1);
+
+            --danger: #A23B34;
+
+            --font-display: 'Source Serif 4', Georgia, serif;
+            --font-body: 'Manrope', sans-serif;
+
+            --shadow-sm: 0 1px 2px rgba(32, 29, 26, 0.04);
+            --shadow-md: 0 8px 24px rgba(32, 29, 26, 0.06);
+            --shadow-lg: 0 24px 48px rgba(32, 29, 26, 0.10);
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: var(--font-main);
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--text-primary);
+            font-family: var(--font-body);
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 1px 1px, rgba(32, 29, 26, 0.035) 1px, transparent 0);
+            background-size: 22px 22px;
+            color: var(--ink);
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
-            overflow-x: hidden;
-            position: relative;
-        }
-
-        /* Ambient Glow Blobs */
-        .blob {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            filter: blur(120px);
-            z-index: 0;
-            opacity: 0.15;
-            pointer-events: none;
-        }
-        .blob-1 {
-            background: #7f00ff;
-            top: -10%;
-            left: -10%;
-        }
-        .blob-2 {
-            background: #ff007f;
-            bottom: -10%;
-            right: -10%;
+            align-items: flex-start;
+            padding: 60px 24px;
         }
 
         .container {
             width: 100%;
-            max-width: 1100px;
-            padding: 30px;
-            z-index: 1;
+            max-width: 1080px;
             display: flex;
             flex-direction: column;
-            gap: 30px;
+            gap: 40px;
         }
 
         header {
             text-align: center;
-            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
         }
 
-        header h1 {
-            font-size: 3rem;
+        .eyebrow {
+            font-family: var(--font-body);
+            font-size: 0.72rem;
             font-weight: 700;
-            background: linear-gradient(to right, #ffffff, #a3a3c2, #ff007f);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-            letter-spacing: -0.5px;
-        }
-
-        header p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            font-weight: 300;
-        }
-
-        /* Glassmorphic Grid Dashboard */
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr;
-            gap: 25px;
-        }
-
-        @media (max-width: 850px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .card {
-            background: var(--card-bg);
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
-            border: 1px solid var(--card-border);
-            border-radius: 24px;
-            padding: 35px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -50%;
-            width: 200%;
-            height: 100%;
-            background: linear-gradient(
-                to right,
-                rgba(255, 255, 255, 0) 0%,
-                rgba(255, 255, 255, 0.03) 50%,
-                rgba(255, 255, 255, 0) 100%
-            );
-            transform: skewX(-25deg);
-            transition: 0.75s;
-            pointer-events: none;
-        }
-
-        .card:hover::before {
-            left: 120%;
-        }
-
-        .card:hover {
-            border-color: rgba(255, 255, 255, 0.12);
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), 0 0 40px var(--glow-color);
-        }
-
-        .card-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-bottom: 25px;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--brass);
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .card-title svg {
+        .eyebrow::before,
+        .eyebrow::after {
+            content: '';
             width: 24px;
-            height: 24px;
-            stroke: #ff007f;
+            height: 1px;
+            background: var(--brass);
+            opacity: 0.6;
         }
 
-        /* Upload Area Design */
+        header h1 {
+            font-family: var(--font-display);
+            font-size: 3rem;
+            font-weight: 600;
+            color: var(--ink);
+            letter-spacing: -0.01em;
+        }
+
+        header p {
+            color: var(--ink-soft);
+            font-size: 1.02rem;
+            font-weight: 400;
+            max-width: 480px;
+            line-height: 1.55;
+        }
+
+        /* Dashboard grid */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1.15fr;
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 860px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 2.3rem;
+            }
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 36px;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 26px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--ink);
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title .icon-wrap {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: var(--accent-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .card-title svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--accent);
+        }
+
+        .card-title.title-response .icon-wrap {
+            background: var(--brass-soft);
+        }
+
+        .card-title.title-response svg {
+            stroke: var(--brass);
+        }
+
+        /* Upload Area */
+        .form-group {
+            margin-bottom: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        label {
+            color: var(--ink-faint);
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+        }
+
         .upload-area {
-            border: 2px dashed var(--card-border);
-            border-radius: 16px;
-            padding: 40px 20px;
+            border: 1.5px dashed var(--border-strong);
+            border-radius: 14px;
+            padding: 38px 20px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: border-color 0.2s ease, background 0.2s ease;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
-            background: rgba(255, 255, 255, 0.01);
+            gap: 14px;
+            background: var(--surface-sunken);
         }
 
-        .upload-area:hover, .upload-area.dragover {
-            border-color: #7f00ff;
-            background: rgba(127, 0, 255, 0.05);
-            box-shadow: 0 0 20px rgba(127, 0, 255, 0.1) inset;
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
         }
 
         .upload-icon {
-            width: 64px;
-            height: 64px;
-            background: rgba(255, 255, 255, 0.03);
+            width: 52px;
+            height: 52px;
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 10px;
-            transition: all 0.3s ease;
+            transition: border-color 0.2s ease;
         }
 
         .upload-area:hover .upload-icon {
-            transform: translateY(-5px);
-            background: rgba(127, 0, 255, 0.15);
+            border-color: var(--accent);
         }
 
         .upload-icon svg {
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
             fill: none;
-            stroke: var(--text-secondary);
-            transition: stroke 0.3s ease;
+            stroke: var(--ink-soft);
+            transition: stroke 0.2s ease;
         }
 
         .upload-area:hover .upload-icon svg {
-            stroke: #ff007f;
+            stroke: var(--accent);
         }
 
         .upload-text {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
+            color: var(--ink-soft);
+            font-size: 0.92rem;
             line-height: 1.5;
         }
 
         .upload-text span {
-            color: var(--text-primary);
-            font-weight: 500;
-            text-decoration: underline;
+            color: var(--accent);
+            font-weight: 600;
         }
 
         .file-input {
@@ -238,24 +270,24 @@
             display: none;
             width: 100%;
             align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--card-border);
+            gap: 14px;
+            padding: 14px 16px;
+            background: var(--surface-sunken);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            margin-top: 20px;
-            animation: fadeIn 0.4s ease forwards;
+            animation: fadeIn 0.3s ease forwards;
         }
 
         .file-info-icon {
-            width: 40px;
-            height: 40px;
-            background: rgba(0, 230, 118, 0.1);
+            width: 38px;
+            height: 38px;
+            background: var(--success-soft);
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--accent-green);
+            color: var(--success);
+            flex-shrink: 0;
         }
 
         .file-details {
@@ -264,169 +296,127 @@
         }
 
         .file-name {
-            font-weight: 500;
-            font-size: 0.95rem;
+            font-weight: 600;
+            font-size: 0.92rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            color: var(--text-primary);
+            color: var(--ink);
         }
 
         .file-size {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
+            font-size: 0.78rem;
+            color: var(--ink-faint);
             margin-top: 2px;
         }
 
         .remove-file {
             background: transparent;
             border: none;
-            color: var(--text-secondary);
+            color: var(--ink-faint);
             cursor: pointer;
             transition: color 0.2s ease;
+            padding: 4px;
+            flex-shrink: 0;
         }
 
         .remove-file:hover {
-            color: #ff3366;
+            color: var(--danger);
         }
 
-        /* Form Controls */
-        .form-group {
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        label {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
+        /* Textarea */
         textarea {
             width: 100%;
-            min-height: 120px;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            padding: 15px;
-            color: var(--text-primary);
-            font-size: 1rem;
+            min-height: 116px;
+            background: var(--surface-sunken);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: var(--ink);
+            font-family: var(--font-body);
+            font-size: 0.98rem;
             resize: none;
             outline: none;
-            transition: all 0.3s ease;
-            line-height: 1.5;
+            transition: border-color 0.2s ease, background 0.2s ease;
+            line-height: 1.55;
+        }
+
+        textarea::placeholder {
+            color: var(--ink-faint);
         }
 
         textarea:focus {
-            border-color: #7f00ff;
-            background: rgba(255, 255, 255, 0.04);
-            box-shadow: 0 0 15px rgba(127, 0, 255, 0.2);
+            border-color: var(--accent);
+            background: var(--surface);
         }
 
-        /* Custom Button styling */
+        /* Button */
         .btn {
             width: 100%;
-            background: var(--primary-gradient);
+            background: var(--accent);
             border: none;
-            border-radius: 14px;
-            padding: 16px 20px;
-            color: white;
-            font-weight: 600;
-            font-size: 1.05rem;
+            border-radius: 12px;
+            padding: 15px 20px;
+            color: #FBFAF7;
+            font-family: var(--font-body);
+            font-weight: 700;
+            font-size: 0.98rem;
+            letter-spacing: 0.01em;
             cursor: pointer;
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 10px;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            box-shadow: 0 4px 15px rgba(255, 0, 127, 0.3);
-            position: relative;
-            overflow: hidden;
+            transition: background 0.2s ease, transform 0.15s ease;
+            margin-top: auto;
         }
 
-        .btn::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
-            opacity: 0;
-            transition: opacity 0.3s ease;
+        .btn:hover:not(:disabled) {
+            background: var(--accent-hover);
         }
 
-        .btn:hover::after {
-            opacity: 1;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255, 0, 127, 0.5), 0 0 20px rgba(127, 0, 255, 0.3);
-        }
-
-        .btn:active {
+        .btn:active:not(:disabled) {
             transform: translateY(1px);
         }
 
         .btn:disabled {
-            background: #2a2a35;
-            color: #555566;
+            background: var(--surface-sunken);
+            color: var(--ink-faint);
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+            border: 1px solid var(--border);
         }
 
         /* Results / Answer Styling */
         .response-container {
             display: none;
             flex-direction: column;
-            gap: 15px;
-            animation: slideUp 0.5s ease cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-            height: 100%;
+            gap: 16px;
+            flex-grow: 1;
+            animation: fadeIn 0.4s ease forwards;
         }
 
         .response-box {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 25px;
-            font-size: 1.05rem;
-            line-height: 1.6;
-            color: #e2e2ec;
+            background: var(--surface-sunken);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            font-size: 1rem;
+            line-height: 1.65;
+            color: var(--ink);
             white-space: pre-wrap;
-            position: relative;
-            min-height: 200px;
+            min-height: 220px;
             max-height: 400px;
             overflow-y: auto;
+            flex-grow: 1;
         }
 
         .response-box::-webkit-scrollbar {
-            width: 8px;
+            width: 6px;
         }
 
         .response-box::-webkit-scrollbar-thumb {
-            background: var(--card-border);
-            border-radius: 4px;
-        }
-
-        .response-box::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        /* Pulse / Loader animations */
-        .spinner {
-            display: none;
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
+            background: var(--border-strong);
+            border-radius: 3px;
         }
 
         .placeholder-state {
@@ -434,70 +424,97 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100%;
+            flex-grow: 1;
             min-height: 250px;
             text-align: center;
-            color: var(--text-secondary);
-            gap: 15px;
+            color: var(--ink-faint);
+            gap: 16px;
         }
 
         .placeholder-state svg {
-            width: 64px;
-            height: 64px;
-            stroke: var(--card-border);
-            animation: float 4s ease-in-out infinite;
+            width: 48px;
+            height: 48px;
+            stroke: var(--border-strong);
         }
 
-        /* Animations */
+        .placeholder-state p {
+            font-size: 0.95rem;
+            max-width: 240px;
+            line-height: 1.5;
+        }
+
+        /* Spinner */
+        .spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(251, 250, 247, 0.35);
+            border-radius: 50%;
+            border-top-color: #FBFAF7;
+            animation: spin 0.8s linear infinite;
+        }
+
         @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
 
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Glow details */
-        .glowing-bar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: var(--primary-gradient);
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .success-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: rgba(0, 230, 118, 0.1);
-            color: var(--accent-green);
-            padding: 4px 12px;
+            gap: 6px;
+            background: var(--success-soft);
+            color: var(--success);
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-top: 15px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .error-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(162, 59, 52, 0.08);
+            color: var(--danger);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .response-box.error-state {
+            border-color: var(--danger);
+            background: rgba(162, 59, 52, 0.025);
+            color: var(--danger);
+        }
+
+        #response-time {
+            font-size: 0.78rem;
+            color: var(--ink-faint);
         }
     </style>
 </head>
-<body>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
 
+<body>
     <div class="container">
         <header>
+            <div class="eyebrow">Document Intelligence</div>
             <h1>SmartDocs AI</h1>
             <p>Upload a document and get instant, context-aware answers to your questions.</p>
         </header>
@@ -505,11 +522,13 @@
         <div class="dashboard">
             <!-- Left Panel: File Upload & Ask Form -->
             <div class="card">
-                <div class="glowing-bar"></div>
                 <h2 class="card-title">
-                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                    </svg>
+                    <span class="icon-wrap">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                        </svg>
+                    </span>
                     Source Document
                 </h2>
 
@@ -518,7 +537,8 @@
                     <div class="upload-area" id="upload-area">
                         <div class="upload-icon">
                             <svg viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
                         </div>
                         <div class="upload-text" id="upload-text">
@@ -529,8 +549,10 @@
 
                     <div class="file-info" id="file-info">
                         <div class="file-info-icon">
-                            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                         </div>
                         <div class="file-details">
@@ -538,16 +560,18 @@
                             <div class="file-size" id="file-size">0 KB</div>
                         </div>
                         <button class="remove-file" id="remove-file" title="Remove file">
-                            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
                 </div>
 
-                <div class="form-group" style="margin-top: 25px;">
+                <div class="form-group" style="margin-top: 6px;">
                     <label for="question">Your Question</label>
-                    <textarea id="question" placeholder="Ask anything about the content of the PDF... e.g., 'Summary of key objectives'"></textarea>
+                    <textarea id="question"
+                        placeholder="Ask anything about the content of the PDF... e.g., 'Summary of key objectives'"></textarea>
                 </div>
 
                 <button class="btn" id="submit-btn" disabled>
@@ -557,21 +581,24 @@
             </div>
 
             <!-- Right Panel: AI Answer -->
-            <div class="card" style="display: flex; flex-direction: column;">
-                <div class="glowing-bar" style="background: var(--secondary-gradient);"></div>
-                <h2 class="card-title">
-                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="stroke: #00f2fe;">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.187-5.096A9.75 9.75 0 109.813 15.904z" />
-                    </svg>
+            <div class="card">
+                <h2 class="card-title title-response">
+                    <span class="icon-wrap">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.187-5.096A9.75 9.75 0 109.813 15.904z" />
+                        </svg>
+                    </span>
                     Assistant Response
                 </h2>
 
                 <!-- Placeholder Empty State -->
                 <div class="placeholder-state" id="placeholder-state">
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                     </svg>
-                    <p style="font-size: 1rem; max-width: 250px;">Upload a PDF and submit a question to see the response here.</p>
+                    <p>Upload a PDF and submit a question to see the response here.</p>
                 </div>
 
                 <!-- Answer Output Area -->
@@ -579,12 +606,14 @@
                     <div class="response-box" id="response-box"></div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div class="success-badge" id="source-badge">
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             Verified Context
                         </div>
-                        <span id="response-time" style="font-size: 0.8rem; color: var(--text-secondary)"></span>
+                        <span id="response-time"></span>
                     </div>
                 </div>
             </div>
@@ -606,7 +635,8 @@
         const responseContainer = document.getElementById('response-container');
         const responseBox = document.getElementById('response-box');
         const responseTime = document.getElementById('response-time');
-        
+        const sourceBadge = document.getElementById('source-badge');
+
         let selectedFile = null;
 
         // Sync button disabled state
@@ -649,11 +679,11 @@
             }
             selectedFile = file;
             fileName.textContent = file.name;
-            
+
             // Format size
             const sizeKB = (file.size / 1024).toFixed(1);
-            fileSize.textContent = sizeKB > 1024 
-                ? (sizeKB / 1024).toFixed(1) + ' MB' 
+            fileSize.textContent = sizeKB > 1024
+                ? (sizeKB / 1024).toFixed(1) + ' MB'
                 : sizeKB + ' KB';
 
             uploadArea.style.display = 'none';
@@ -674,7 +704,18 @@
             if (!selectedFile || questionInput.value.trim().length === 0) return;
 
             const startTime = Date.now();
-            
+
+            // Reset UI states
+            responseBox.classList.remove('error-state');
+            sourceBadge.className = 'success-badge';
+            sourceBadge.innerHTML = `
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Verified Context
+            `;
+            responseTime.textContent = '';
+
             // Loading State
             submitBtn.disabled = true;
             btnSpinner.style.display = 'block';
@@ -692,23 +733,41 @@
                     body: formData
                 });
 
-                const result = await response.json();
+                let result;
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    result = await response.json();
+                } else {
+                    const textError = await response.text();
+                    throw new Error(textError || `Server returned status ${response.status}`);
+                }
 
                 if (response.ok && result.success) {
                     placeholderState.style.display = 'none';
                     responseContainer.style.display = 'flex';
-                    
+
                     // Simple simulated type-writer effect for UI delight
                     animateText(result.answer, responseBox);
-                    
+
                     const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
                     responseTime.textContent = `Processed in ${durationSec}s`;
                 } else {
-                    alert(`Error: ${result.detail || 'Failed to process request.'}`);
+                    let errorMsg = 'Failed to process request.';
+                    if (result && result.detail) {
+                        if (Array.isArray(result.detail)) {
+                            errorMsg = result.detail.map(err => {
+                                const loc = err.loc ? err.loc.join(' -> ') : '';
+                                return `${loc ? loc + ': ' : ''}${err.msg}`;
+                            }).join('\n');
+                        } else {
+                            errorMsg = result.detail;
+                        }
+                    }
+                    showErrorInUI(errorMsg);
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error connecting to the API server.');
+                showErrorInUI(err.message || 'Error connecting to the API server.');
             } finally {
                 // Restore button
                 submitBtn.disabled = false;
@@ -720,12 +779,31 @@
             }
         });
 
+        function showErrorInUI(msg) {
+            placeholderState.style.display = 'none';
+            responseContainer.style.display = 'flex';
+            
+            // Display the error text in the response box
+            responseBox.textContent = msg;
+            responseBox.classList.add('error-state');
+            
+            // Update badge to error state
+            sourceBadge.className = 'error-badge';
+            sourceBadge.innerHTML = `
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Error Encountered
+            `;
+            responseTime.textContent = '';
+        }
+
         function animateText(text, container) {
             container.textContent = '';
             let i = 0;
             // Write chunks of text at a time for efficiency, or simple character by character
             const speed = text.length > 500 ? 5 : 15;
-            
+
             function typeWriter() {
                 if (i < text.length) {
                     // Check if it's multiple chars to make it look smooth for long text
@@ -740,4 +818,5 @@
         }
     </script>
 </body>
+
 </html>

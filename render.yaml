@@ -2,11 +2,12 @@ services:
   - type: web
     name: smartdocs-ai
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    pythonVersion: "3.11.0"
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: GEMINI_API_KEY
-        sync: false          # You will enter this manually in Render dashboard
+        sync: false          # Enter this manually in the Render dashboard
       - key: GEMINI_EMBEDDING_MODEL
         value: gemini-embedding-2-preview
       - key: GEMINI_CHAT_MODEL

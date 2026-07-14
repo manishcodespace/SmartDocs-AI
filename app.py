@@ -445,3 +445,16 @@ Answer:"""
             except Exception:
                 pass
 
+
+# ---------------------------------------------------------------------------
+# Excel AI Query Module — completely independent from the PDF/RAG APIs above
+# ---------------------------------------------------------------------------
+from routers.excel import router as excel_router  # noqa: E402
+app.include_router(excel_router, prefix="/api/excel", tags=["Excel AI Query"])
+
+# ---------------------------------------------------------------------------
+# Authentication Module — protects the Excel AI Query APIs
+# ---------------------------------------------------------------------------
+from routers.auth import router as auth_router  # noqa: E402
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+

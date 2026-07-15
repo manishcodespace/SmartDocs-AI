@@ -1,17 +1,44 @@
 """
-routers/excel.py
+routers/excel.py  (enterprise upgrade)
 
 Excel AI Query — FastAPI router.
 
 Routes:
-    GET   /api/excel/health   — check server + MongoDB + Gemini API key status (public)
-    POST  /api/excel/upload   — upload an Excel file, store in memory            (protected)
-    POST  /api/excel/query    — natural-language query against uploaded file     (protected)
-    POST  /api/excel/save     — persist a query result to MongoDB                (protected)
-    GET   /api/excel/history  — list previously saved reports                   (protected)
+    GET   /api/excel/health   — health check: server, MongoDB, Gemini, cache stats (public)
+    POST  /api/excel/upload   — upload Excel file, load into memory, register schema (protected)
+    POST  /api/excel/query    — natural-language query with full enterprise pipeline (protected)
+    POST  /api/excel/save     — persist a query result to MongoDB (protected)
+    GET   /api/excel/history  — list previously saved reports (protected)
+
+Enterprise query pipeline (POST /query):
+    ┌─────────────────────────────────────────────────────────────┐
+    │ User question + fileId                                      │
+    │         ↓                                                   │
+    │ [Query Plan Cache] ──── HIT ──→ skip AI, use cached plan   │
+    │         │ MISS                                              │
+    │         ↓                                                   │
+    │ [Schema Registry]  ──────────→ column types + samples      │
+    │         ↓                                                   │
+    │ [AI Intent Parser] ──────────→ raw intent JSON (Gemini)    │
+    │         ↓                                                   │
+    │ [Query Planner]    ──────────→ typed ExecutionPlan          │
+    │         ↓                                                   │
+    │ [Query Validator]  ──────────→ fuzzy resolve + confidence   │
+    │         ↓                  └─→ warnings + errors            │
+    │ [Cache PUT]                                                 │
+    │         ↓                                                   │
+    │ [Pandas: Filters]  ──────────→ filtered DataFrame           │
+    │ [Pandas: Aggregate]──────────→ scalar result (if needed)    │
+    │ [Pandas: Group By] ──────────→ per-group table (if needed)  │
+    │ [Pandas: Sort/Rank]──────────→ sorted/limited rows          │
+    │         ↓                                                   │
+    │ [LLM Summarizer]   ──────────→ rich summary (real values)  │
+    │         ↓                                                   │
+    │ ExcelQueryResponse {summary, count, table, confidence, ...} │
+    └─────────────────────────────────────────────────────────────┘
 
 This router is completely independent from the existing PDF/RAG routes.
-All business logic lives in the services/ layer.
+All business logic lives in the services/ layer (thin router principle).
 """
 
 from __future__ import annotations
@@ -20,7 +47,9 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 
+import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from dependencies.auth import get_current_user
@@ -33,14 +62,23 @@ from schemas.excel_schema import (
     SaveReportResponse,
     UploadResponse,
 )
-from services import excel_ai_agent, excel_loader, excel_query_service, mongodb_service
+from services import (
+    excel_ai_agent,
+    excel_loader,
+    mongodb_service,
+)
+from services import excel_aggregation_service as agg_service
+from services import excel_query_service as query_service
+from services import query_plan_cache
+from services import query_planner
+from services import query_validator
+from services import schema_registry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Maximum file size: 10 MB
-_MAX_FILE_SIZE = 10 * 1024 * 1024
+_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 # ---------------------------------------------------------------------------
@@ -52,23 +90,22 @@ _MAX_FILE_SIZE = 10 * 1024 * 1024
     "/health",
     summary="Health check",
     description=(
-        "Returns the live status of the Excel AI Query module, "
-        "MongoDB Atlas connection, Gemini API key, and active file sessions."
+        "Returns live status of the Excel AI Query module including "
+        "MongoDB, Gemini API key, file store, schema registry, and query plan cache."
     ),
     status_code=status.HTTP_200_OK,
 )
 async def health_check() -> dict:
-    import os
     from datetime import datetime, timezone
 
     result: dict = {
         "status": "ok",
         "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-        "module": "Excel AI Query",
+        "module": "Excel AI Query — Enterprise Edition",
         "checks": {},
     }
 
-    # --- 1. Gemini API key ---
+    # --- Gemini API key ---
     has_key = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
     result["checks"]["gemini_api_key"] = (
         {"status": "ok", "message": "API key is set"}
@@ -76,11 +113,12 @@ async def health_check() -> dict:
         else {"status": "error", "message": "API key is missing"}
     )
 
-    # --- 2. MongoDB Atlas ---
+    # --- MongoDB ---
     try:
         from pymongo import MongoClient
+
         mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-        db_name   = os.getenv("MONGO_DB_NAME", "smartdocs_ai")
+        db_name = os.getenv("MONGO_DB_NAME", "smartdocs_ai")
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=4000)
         client.admin.command("ping")
         client.close()
@@ -89,18 +127,28 @@ async def health_check() -> dict:
             "message": f"Connected to '{db_name}'",
         }
     except Exception as exc:
-        result["checks"]["mongodb"] = {
-            "status": "error",
-            "message": str(exc),
-        }
+        result["checks"]["mongodb"] = {"status": "error", "message": str(exc)}
         result["status"] = "degraded"
 
-    # --- 3. In-memory file store ---
+    # --- File store ---
     active_sessions = excel_loader.store_size()
     result["checks"]["file_store"] = {
         "status": "ok",
         "active_sessions": active_sessions,
         "message": f"{active_sessions} file(s) currently loaded in memory",
+    }
+
+    # --- Schema registry ---
+    result["checks"]["schema_registry"] = {
+        "status": "ok",
+        "schemas_registered": schema_registry.registry_size(),
+    }
+
+    # --- Query plan cache ---
+    cache_stats = query_plan_cache.cache_stats()
+    result["checks"]["query_plan_cache"] = {
+        "status": "ok",
+        **cache_stats,
     }
 
     return result
@@ -112,7 +160,6 @@ async def health_check() -> dict:
 
 
 def _require_api_key() -> None:
-    """Raise HTTP 500 if no Gemini API key is configured."""
     if not os.getenv("GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -133,8 +180,8 @@ def _require_api_key() -> None:
     response_model=UploadResponse,
     summary="Upload an Excel file",
     description=(
-        "Upload a .xlsx or .xls file. The file is read into memory and a "
-        "unique fileId is returned for subsequent queries."
+        "Upload a .xlsx or .xls file. The file is read into memory, "
+        "column schema is registered, and a unique fileId is returned for subsequent queries."
     ),
     status_code=status.HTTP_200_OK,
 )
@@ -144,16 +191,13 @@ async def upload_excel(
 ) -> UploadResponse:
     tmp_path: str | None = None
 
-    # --- Validate extension ---
+    # Validate extension
     try:
         excel_loader.validate_extension(file.filename or "")
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    # --- Validate file size (headers) ---
+    # Validate file size via headers
     content_length = file.headers.get("content-length")
     if content_length and int(content_length) > _MAX_FILE_SIZE:
         raise HTTPException(
@@ -161,7 +205,7 @@ async def upload_excel(
             detail="File size exceeds the 10 MB limit.",
         )
 
-    # --- Save to a temporary file ---
+    # Save to temp file
     try:
         suffix = os.path.splitext(file.filename)[1]
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -173,7 +217,7 @@ async def upload_excel(
             detail=f"Could not save the uploaded file: {exc}",
         ) from exc
 
-    # --- Validate file size on disk ---
+    # Validate file size on disk
     if os.path.getsize(tmp_path) > _MAX_FILE_SIZE:
         _cleanup(tmp_path)
         raise HTTPException(
@@ -185,8 +229,7 @@ async def upload_excel(
         metadata = excel_loader.load_excel(tmp_path, file.filename or "")
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
     except Exception as exc:
         logger.exception("Unexpected error loading Excel file.")
@@ -198,17 +241,14 @@ async def upload_excel(
         _cleanup(tmp_path)
 
     logger.info(
-        "Upload successful: fileId=%s | sheet=%s | rows=%d",
-        metadata["fileId"],
-        metadata["sheetName"],
-        metadata["totalRows"],
+        "Upload OK: fileId=%s | sheet=%s | rows=%d",
+        metadata["fileId"], metadata["sheetName"], metadata["totalRows"],
     )
-
     return UploadResponse(**metadata)
 
 
 # ---------------------------------------------------------------------------
-# POST /query
+# POST /query  — Enterprise pipeline
 # ---------------------------------------------------------------------------
 
 
@@ -218,8 +258,9 @@ async def upload_excel(
     summary="Query Excel data with natural language",
     description=(
         "Send a fileId (from /upload) and a natural-language question. "
-        "The AI extracts filter conditions, applies them to the DataFrame, "
-        "and returns matching rows with a summary."
+        "The enterprise pipeline: Schema Registry → Cache check → AI Intent Parse → "
+        "Query Planner → Query Validator (fuzzy resolve + confidence) → "
+        "Pandas Execute (filters + aggregation + group-by + sort/rank) → LLM Summarizer."
     ),
     status_code=status.HTTP_200_OK,
 )
@@ -229,50 +270,160 @@ async def query_excel(
 ) -> ExcelQueryResponse:
     _require_api_key()
 
-    # --- Retrieve cached DataFrame ---
+    t_start = time.perf_counter()
+
+    # ------------------------------------------------------------------
+    # 1. Retrieve cached DataFrame
+    # ------------------------------------------------------------------
     try:
         df = excel_loader.get_dataframe(body.fileId)
     except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
-    # --- AI: parse natural language → structured filters ---
+    # ------------------------------------------------------------------
+    # 2. Get schema from registry
+    # ------------------------------------------------------------------
     try:
-        ai_result = excel_ai_agent.parse_question(
-            question=body.question,
-            column_names=list(df.columns),
+        schema = schema_registry.get_schema(body.fileId)
+    except KeyError:
+        # Fallback: schema not found (e.g., server restart) — use column names only
+        logger.warning("Schema not found for fileId=%s — using column names only", body.fileId)
+        schema = body.fileId  # will trigger fallback in excel_ai_agent._format_schema
+
+    # ------------------------------------------------------------------
+    # 3. Check query plan cache
+    # ------------------------------------------------------------------
+    cached_plan = query_plan_cache.get(body.fileId, body.question)
+    was_cached = cached_plan is not None
+
+    if was_cached:
+        plan = cached_plan
+        # Re-validate to get fresh confidence/warnings (schema may have same structure)
+        validation = query_validator.validate(plan, schema)
+        logger.info("Query plan served from cache for fileId=%s", body.fileId)
+    else:
+        # ------------------------------------------------------------------
+        # 4. AI intent parse (Gemini, temperature=0)
+        # ------------------------------------------------------------------
+        try:
+            ai_result = excel_ai_agent.parse_question(
+                question=body.question,
+                schema=schema,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+            ) from exc
+        except Exception as exc:
+            _handle_gemini_error(exc)
+
+        logger.info(
+            "AI intent: intent=%s | filters=%d | q='%s...'",
+            ai_result.get("intent", "?"),
+            len(ai_result.get("filters", [])),
+            body.question[:50],
         )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:
-        _handle_gemini_error(exc)
 
-    filters = ai_result.get("filters", [])
-    summary_template = ai_result.get("summary_template", "matching records")
+        # ------------------------------------------------------------------
+        # 5. Query Planner: AI dict → typed ExecutionPlan
+        # ------------------------------------------------------------------
+        plan = query_planner.build_plan(ai_result)
 
-    logger.info(
-        "AI extracted %d filter(s) for question: '%s'",
-        len(filters),
-        body.question,
+        # ------------------------------------------------------------------
+        # 6. Query Validator: fuzzy resolve columns + type checks + confidence
+        # ------------------------------------------------------------------
+        validation = query_validator.validate(plan, schema)
+        plan = validation.resolved_plan  # use column-name-corrected plan
+
+        # ------------------------------------------------------------------
+        # 7. Cache the validated plan (if valid)
+        # ------------------------------------------------------------------
+        if validation.is_valid:
+            query_plan_cache.put(body.fileId, body.question, plan)
+
+    # ------------------------------------------------------------------
+    # 8. Execute filters (Pandas)
+    # ------------------------------------------------------------------
+    filter_dicts = [f.model_dump() for f in plan.filters]
+    result_df, count = query_service.apply_filters(df, filter_dicts)
+
+    # ------------------------------------------------------------------
+    # 9. Scalar aggregation (Pandas) — if intent is aggregate
+    # ------------------------------------------------------------------
+    agg_result = None
+    if plan.aggregation:
+        try:
+            agg_result = agg_service.aggregate(result_df, plan.aggregation)
+        except Exception as exc:
+            logger.warning("Aggregation failed: %s", exc)
+            validation.warnings.append(f"Aggregation could not be computed: {exc}")
+
+    # ------------------------------------------------------------------
+    # 10. Group-by aggregation (Pandas) — if intent is group
+    # ------------------------------------------------------------------
+    group_result = None
+    if plan.group_by:
+        try:
+            group_result = agg_service.group_and_aggregate(result_df, plan.group_by)
+        except Exception as exc:
+            logger.warning("Group-by failed: %s", exc)
+            validation.warnings.append(f"Group-by could not be computed: {exc}")
+
+    # ------------------------------------------------------------------
+    # 11. Sort / Rank (Pandas) — if sort_by or intent is rank
+    # ------------------------------------------------------------------
+    rows: list[dict]
+    if plan.sort_by:
+        sorted_df = agg_service.sort_and_rank(result_df, plan.sort_by, plan.limit)
+        rows = query_service.df_to_records(sorted_df)
+        count = len(rows)
+    elif group_result is not None:
+        # Return group result as the table for group-by queries
+        rows = group_result
+        count = len(rows)
+    elif plan.limit:
+        all_rows = query_service.df_to_records(result_df)
+        rows = all_rows[: plan.limit]
+        count = len(rows)
+    else:
+        rows = query_service.df_to_records(result_df)
+
+    # ------------------------------------------------------------------
+    # 12. Build rich summary (uses REAL computed values — no hallucination)
+    # ------------------------------------------------------------------
+    summary = excel_ai_agent.build_rich_summary(
+        template=plan.summary_template,
+        count=count,
+        agg_result=agg_result,
+        group_result=group_result,
+        intent=plan.intent,
     )
 
-    # --- Apply filters ---
-    rows, count = excel_query_service.apply_filters(df, filters)
+    exec_ms = round((time.perf_counter() - t_start) * 1000, 2)
 
-    # --- Build human-readable summary ---
-    summary = excel_ai_agent.build_summary(summary_template, count)
+    logger.info(
+        "Query complete | intent=%s | rows=%d | conf=%.3f | cached=%s | time=%.1fms | q='%s...'",
+        plan.intent, count, validation.confidence, was_cached, exec_ms, body.question[:50],
+    )
 
-    return ExcelQueryResponse(success=True, summary=summary, count=count, table=rows)
+    return ExcelQueryResponse(
+        success=True,
+        summary=summary,
+        count=count,
+        table=rows,
+        intent=plan.intent,
+        confidence=validation.confidence,
+        warnings=validation.warnings,
+        filters_applied=filter_dicts,
+        aggregation_result=agg_result,
+        group_result=group_result if group_result is not None else None,
+        execution_time_ms=exec_ms,
+        cached=was_cached,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -296,17 +447,10 @@ async def save_report(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The 'query' field cannot be empty.",
         )
-
     try:
-        inserted_id = mongodb_service.save_report(
-            query=body.query,
-            rows=body.rows,
-        )
+        inserted_id = mongodb_service.save_report(query=body.query, rows=body.rows)
     except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Unexpected error saving report to MongoDB.")
         raise HTTPException(
@@ -314,7 +458,7 @@ async def save_report(
             detail=f"Could not save the report: {exc}",
         ) from exc
 
-    logger.info("Report saved with id=%s | query='%s'", inserted_id, body.query)
+    logger.info("Report saved: id=%s | query='%s'", inserted_id, body.query)
     return SaveReportResponse(success=True, message="Report saved successfully.")
 
 
@@ -336,10 +480,7 @@ async def get_history(
     try:
         records = mongodb_service.get_history()
     except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Unexpected error fetching history from MongoDB.")
         raise HTTPException(

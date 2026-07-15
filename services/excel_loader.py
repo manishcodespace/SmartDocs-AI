@@ -6,7 +6,8 @@ Responsibilities:
   - Read the file into a Pandas DataFrame
   - Generate a unique fileId
   - Store the DataFrame in server memory (in-process cache)
-  - Expose helpers to retrieve / evict cached DataFrames
+  - Register per-column schema metadata via schema_registry
+  - Expose helpers to retrieve / evict cached DataFrames and schemas
 
 This module is completely independent from the existing RAG / PDF services.
 """
@@ -18,6 +19,9 @@ import uuid
 from typing import Dict
 
 import pandas as pd
+
+from services import schema_registry  # Schema Registry integration
+from services import query_plan_cache  # Invalidate cached plans on eviction
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +109,9 @@ def load_excel(file_path: str, filename: str) -> dict:
         "sheet_name": sheet_name,
     }
 
+    # Register per-column schema (types, sample values, min/max) for AI prompting + validation
+    col_schema = schema_registry.register(file_id, df, sheet_name)
+
     logger.info(
         "Loaded Excel '%s' → fileId=%s | sheet='%s' | rows=%d | cols=%d",
         filename,
@@ -138,9 +145,11 @@ def get_dataframe(file_id: str) -> pd.DataFrame:
 
 
 def evict(file_id: str) -> None:
-    """Remove a cached DataFrame (call when no longer needed)."""
+    """Remove a cached DataFrame, its schema, and its cached query plans."""
     _DATAFRAME_STORE.pop(file_id, None)
-    logger.debug("Evicted fileId=%s from store", file_id)
+    schema_registry.evict(file_id)       # Remove column schema metadata
+    query_plan_cache.invalidate_file(file_id)  # Remove all cached query plans
+    logger.debug("Evicted fileId=%s from DataFrame store, schema registry, and query plan cache", file_id)
 
 
 def store_size() -> int:

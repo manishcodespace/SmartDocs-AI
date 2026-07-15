@@ -1,22 +1,32 @@
 """
-services/excel_query_service.py
+services/excel_query_service.py  (upgraded)
 
 Responsibilities:
   - Accept a Pandas DataFrame and a list of structured filter dicts
-  - Apply each filter using Pandas operations
-  - Return the matching rows as a list of JSON-serialisable dicts
+  - Apply each filter using deterministic Pandas operations
+  - Route date operators to date_intelligence for precise date arithmetic
+  - Return matching rows as a JSON-serialisable list of dicts
 
-Supported filter operators:
-    ==, !=, >, >=, <, <=, contains, startswith, endswith, in, not_in, isnull, notnull
+Supported operators:
+  Equality  : ==, !=
+  Numeric   : >, >=, <, <=, between
+  String    : contains, not_contains, startswith, endswith
+  Set       : in, not_in
+  Null      : isnull, notnull
+  Date      : month, year, this_week, last_week, this_month, last_month, date_range
 
-Filter dict shape (produced by excel_ai_agent.py):
-    {
-        "column"  : "Payment Status",   # exact column name (case-insensitive match)
-        "operator": "contains",         # one of the operators above
-        "value"   : "Pending"           # the comparison value (may be None for isnull/notnull)
-    }
+Changes vs original:
+  - Date operators now routed to date_intelligence.apply_date_filter()
+  - 'between' operator added for numeric ranges
+  - _resolve_column() kept (exact case-insensitive) — fuzzy resolution is in QueryValidator
+  - Logging includes operator + value for observability
 
-This module is completely independent from the existing RAG / PDF services.
+Filter dict shape (produced by query_planner.py after validation):
+  {
+      "column"  : "Payment Status",
+      "operator": "contains",
+      "value"   : "Pending"
+  }
 """
 
 from __future__ import annotations
@@ -25,6 +35,8 @@ import logging
 from typing import Any
 
 import pandas as pd
+
+from services.date_intelligence import apply_date_filter, is_date_operator
 
 logger = logging.getLogger(__name__)
 
@@ -37,27 +49,24 @@ logger = logging.getLogger(__name__)
 def apply_filters(
     df: pd.DataFrame,
     filters: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[pd.DataFrame, int]:
     """
-    Apply a list of filter dicts to *df* and return (matching_rows, count).
+    Apply a list of filter dicts to *df* and return (result_df, count).
 
     Parameters
     ----------
-    df      : pd.DataFrame — the full dataset loaded from Excel
-    filters : list[dict]   — structured filter instructions from the AI agent
+    df      : pd.DataFrame — the full (or pre-filtered) dataset
+    filters : list[dict]   — structured filter instructions
 
     Returns
     -------
-    (rows, count)
-        rows  — list of dicts (each dict is one matching row)
-        count — number of matching rows
+    (result_df, count)
+        result_df — filtered DataFrame (preserves columns + dtypes)
+        count     — number of matching rows
     """
     if not filters:
-        # No filters → return all rows
-        rows = _df_to_records(df)
-        return rows, len(rows)
+        return df.copy(), len(df)
 
-    # Work on a copy so the cached DataFrame is never mutated
     result = df.copy()
 
     for f in filters:
@@ -65,29 +74,41 @@ def apply_filters(
         operator = str(f.get("operator", "==")).strip().lower()
         value = f.get("value")
 
-        # Resolve column name (case-insensitive)
         column = _resolve_column(result, column_raw)
         if column is None:
             logger.warning(
-                "Filter column '%s' not found in DataFrame — skipping filter.", column_raw
+                "Filter column '%s' not found in DataFrame (after validation) — skipping.",
+                column_raw,
             )
             continue
 
         try:
             mask = _build_mask(result[column], operator, value)
             result = result[mask]
+            logger.debug(
+                "Filter applied: %s %s %r → %d rows remain",
+                column, operator, value, len(result),
+            )
         except Exception as exc:
             logger.warning(
                 "Could not apply filter {column='%s', op='%s', value=%r}: %s — skipping.",
-                column,
-                operator,
-                value,
-                exc,
+                column, operator, value, exc,
             )
 
-    rows = _df_to_records(result)
-    logger.info("Filters applied: %d filters → %d matching rows", len(filters), len(rows))
-    return rows, len(rows)
+    count = len(result)
+    logger.info(
+        "Filters complete: %d filter(s) applied → %d matching row(s)",
+        len(filters), count,
+    )
+    return result, count
+
+
+def df_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """
+    Convert a DataFrame to a JSON-serialisable list of row dicts.
+    NaN values are replaced with None for clean JSON output.
+    """
+    return df.where(pd.notnull(df), other=None).to_dict(orient="records")
 
 
 # ---------------------------------------------------------------------------
@@ -97,8 +118,9 @@ def apply_filters(
 
 def _resolve_column(df: pd.DataFrame, column_name: str) -> str | None:
     """
-    Find the actual column name from the DataFrame headers using a
-    case-insensitive comparison.  Returns None if not found.
+    Find the actual column using exact case-insensitive comparison.
+    Fuzzy resolution is handled upstream in QueryValidator.
+    Returns None if not found.
     """
     target = column_name.strip().lower()
     for col in df.columns:
@@ -110,61 +132,72 @@ def _resolve_column(df: pd.DataFrame, column_name: str) -> str | None:
 def _build_mask(series: pd.Series, operator: str, value: Any) -> pd.Series:
     """
     Build a boolean mask for *series* based on *operator* and *value*.
+
+    Date operators are routed to date_intelligence.apply_date_filter().
+    All other operators are handled inline with Pandas.
     """
-    # Normalise string values for text operations
+    # --- Date operators ---
+    if is_date_operator(operator):
+        return apply_date_filter(series, operator, value)
+
+    # --- String normalisation for text operators ---
     str_series = series.astype(str).str.strip().str.lower()
 
-    if operator in ("==", "eq", "equals", "equal"):
+    # --- Equality ---
+    if operator in ("==", "eq", "equals", "equal", "is"):
         return series.astype(str).str.strip().str.lower() == str(value).strip().lower()
 
-    elif operator in ("!=", "ne", "not_equal", "not equal"):
+    if operator in ("!=", "ne", "not_equal", "not equal"):
         return series.astype(str).str.strip().str.lower() != str(value).strip().lower()
 
-    elif operator in (">", "gt", "greater_than"):
+    # --- Numeric comparisons ---
+    if operator in (">", "gt", "greater_than"):
         return pd.to_numeric(series, errors="coerce") > float(value)
 
-    elif operator in (">=", "gte", "greater_than_equal"):
+    if operator in (">=", "gte", "greater_than_equal"):
         return pd.to_numeric(series, errors="coerce") >= float(value)
 
-    elif operator in ("<", "lt", "less_than"):
+    if operator in ("<", "lt", "less_than"):
         return pd.to_numeric(series, errors="coerce") < float(value)
 
-    elif operator in ("<=", "lte", "less_than_equal"):
+    if operator in ("<=", "lte", "less_than_equal"):
         return pd.to_numeric(series, errors="coerce") <= float(value)
 
-    elif operator == "contains":
+    if operator == "between":
+        if isinstance(value, (list, tuple)) and len(value) == 2:
+            numeric = pd.to_numeric(series, errors="coerce")
+            return (numeric >= float(value[0])) & (numeric <= float(value[1]))
+        raise ValueError(
+            f"Operator 'between' requires a list of two values [low, high], got: {value!r}"
+        )
+
+    # --- String operators ---
+    if operator == "contains":
         return str_series.str.contains(str(value).strip().lower(), na=False, regex=False)
 
-    elif operator == "not_contains":
+    if operator == "not_contains":
         return ~str_series.str.contains(str(value).strip().lower(), na=False, regex=False)
 
-    elif operator == "startswith":
+    if operator == "startswith":
         return str_series.str.startswith(str(value).strip().lower(), na=False)
 
-    elif operator == "endswith":
+    if operator == "endswith":
         return str_series.str.endswith(str(value).strip().lower(), na=False)
 
-    elif operator in ("in",):
+    # --- Set operators ---
+    if operator == "in":
         values_lower = [str(v).strip().lower() for v in (value if isinstance(value, list) else [value])]
         return str_series.isin(values_lower)
 
-    elif operator in ("not_in", "nin"):
+    if operator in ("not_in", "nin"):
         values_lower = [str(v).strip().lower() for v in (value if isinstance(value, list) else [value])]
         return ~str_series.isin(values_lower)
 
-    elif operator in ("isnull", "is_null", "isna", "is_na", "empty"):
+    # --- Null operators ---
+    if operator in ("isnull", "is_null", "isna", "is_na", "empty"):
         return series.isna() | (series.astype(str).str.strip() == "")
 
-    elif operator in ("notnull", "not_null", "notna", "not_na", "not_empty"):
+    if operator in ("notnull", "not_null", "notna", "not_na", "not_empty"):
         return series.notna() & (series.astype(str).str.strip() != "")
 
-    else:
-        raise ValueError(f"Unsupported operator: '{operator}'")
-
-
-def _df_to_records(df: pd.DataFrame) -> list[dict[str, Any]]:
-    """
-    Convert a DataFrame to a JSON-serialisable list of row dicts.
-    NaN values are replaced with None for clean JSON output.
-    """
-    return df.where(pd.notnull(df), other=None).to_dict(orient="records")
+    raise ValueError(f"Unsupported operator: '{operator}'")

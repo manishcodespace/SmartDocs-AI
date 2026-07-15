@@ -153,22 +153,22 @@ def create_user(username: str, plain_password: str) -> dict[str, Any]:
     """
     from pymongo.errors import DuplicateKeyError
 
-    col = _get_users_collection()
-    hashed = hash_password(plain_password)
-
-    doc = {
-        "username":        username.lower().strip(),
-        "hashed_password": hashed,
-        "createdAt":       datetime.now(tz=timezone.utc),
-    }
-
     try:
+        col = _get_users_collection()
+        hashed = hash_password(plain_password)
+
+        doc = {
+            "username":        username.lower().strip(),
+            "hashed_password": hashed,
+            "createdAt":       datetime.now(tz=timezone.utc),
+        }
+
         result = col.insert_one(doc)
     except DuplicateKeyError:
         raise ValueError(f"Username '{username}' is already taken. Please choose another.")
     except Exception as exc:
         logger.exception("Unexpected error creating user '%s'.", username)
-        raise RuntimeError(f"Could not create user: {exc}") from exc
+        raise RuntimeError(f"Could not create user (check DB connection): {exc}") from exc
 
     user_id = str(result.inserted_id)
     logger.info("New user registered: username='%s' | id=%s", username, user_id)
@@ -185,8 +185,13 @@ def get_user_by_username(username: str) -> dict[str, Any] | None:
     Fetch a user document by username.
     Returns None if not found.
     """
-    col = _get_users_collection()
-    doc = col.find_one({"username": username.lower().strip()})
+    try:
+        col = _get_users_collection()
+        doc = col.find_one({"username": username.lower().strip()})
+    except Exception as exc:
+        logger.exception("Database connection error fetching user '%s'.", username)
+        raise RuntimeError(f"Database query failed: {exc}") from exc
+
     if doc is None:
         return None
     doc["id"] = str(doc.pop("_id"))

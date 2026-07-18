@@ -76,7 +76,7 @@ COLLECTION_NAME = "savedReports"
 # ---------------------------------------------------------------------------
 
 
-def save_report(query: str, rows: list[dict[str, Any]]) -> str:
+def save_report(query: str, rows: list[dict[str, Any]], user_id: str | None = None) -> str:
     """
     Insert a new report document into MongoDB.
 
@@ -84,6 +84,7 @@ def save_report(query: str, rows: list[dict[str, Any]]) -> str:
     ----------
     query : str            — Human-readable label for the report
     rows  : list[dict]     — The data rows to persist
+    user_id : str | None   — The authenticated user's ID
 
     Returns
     -------
@@ -98,24 +99,31 @@ def save_report(query: str, rows: list[dict[str, Any]]) -> str:
         "totalRows": len(rows),
         "rows": rows,
     }
+    if user_id:
+        document["userId"] = user_id
 
     result = collection.insert_one(document)
     inserted_id = str(result.inserted_id)
 
     logger.info(
-        "Report saved: id=%s | query='%s' | totalRows=%d",
+        "Report saved: id=%s | query='%s' | totalRows=%d | userId=%s",
         inserted_id,
         query,
         len(rows),
+        user_id,
     )
     return inserted_id
 
 
-def get_history() -> list[dict[str, Any]]:
+def get_history(user_id: str | None = None, report_id: str | None = None) -> list[dict[str, Any]]:
     """
-    Return a summary list of all saved reports (newest first).
-    Each entry contains: id, query, createdAt, totalRows.
-    The full 'rows' payload is excluded to keep responses lightweight.
+    Return a list of all saved reports for the user (newest first).
+    Each entry contains: id, query, createdAt, totalRows, rows.
+
+    Parameters
+    ----------
+    user_id : str | None   — Filter reports by this user ID
+    report_id : str | None — Filter reports by a specific report ID
 
     Returns
     -------
@@ -124,9 +132,22 @@ def get_history() -> list[dict[str, Any]]:
     db = _get_db()
     collection = db[COLLECTION_NAME]
 
+    filter_query = {}
+    if user_id:
+        filter_query["userId"] = user_id
+
+    if report_id:
+        from bson import ObjectId
+        from bson.errors import InvalidId
+        try:
+            filter_query["_id"] = ObjectId(report_id)
+        except InvalidId as exc:
+            logger.warning("Invalid ObjectId format: %s", report_id)
+            raise ValueError(f"Invalid report ID format: {report_id}") from exc
+
     cursor = collection.find(
-        {},
-        {"_id": 1, "query": 1, "createdAt": 1, "totalRows": 1},
+        filter_query,
+        {"_id": 1, "query": 1, "createdAt": 1, "totalRows": 1, "rows": 1},
     ).sort("createdAt", -1)  # newest first
 
     history = []
@@ -137,8 +158,9 @@ def get_history() -> list[dict[str, Any]]:
                 "query": doc.get("query", ""),
                 "createdAt": doc.get("createdAt"),
                 "totalRows": doc.get("totalRows", 0),
+                "rows": doc.get("rows", []),
             }
         )
 
-    logger.info("History retrieved: %d reports", len(history))
+    logger.info("History retrieved for user %s: %d reports", user_id, len(history))
     return history

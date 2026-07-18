@@ -150,6 +150,7 @@ class HistoryResponse(BaseModel):
     query: str = Field(..., description="The label saved with this report")
     createdAt: datetime = Field(..., description="UTC timestamp of when the report was saved")
     totalRows: int = Field(..., description="Number of rows saved in this report")
+    rows: Optional[list[dict[str, Any]]] = Field(None, description="The rows saved in this report")
 
 
 # ---------------------------------------------------------------------------

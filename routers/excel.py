@@ -448,7 +448,7 @@ async def save_report(
             detail="The 'query' field cannot be empty.",
         )
     try:
-        inserted_id = mongodb_service.save_report(query=body.query, rows=body.rows)
+        inserted_id = mongodb_service.save_report(query=body.query, rows=body.rows, user_id=current_user.id)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
@@ -471,14 +471,17 @@ async def save_report(
     "/history",
     response_model=list[HistoryResponse],
     summary="Retrieve saved report history",
-    description="Return a summary list of all previously saved reports (newest first).",
+    description="Return a summary list of all previously saved reports (newest first) or filter by a specific report ID.",
     status_code=status.HTTP_200_OK,
 )
 async def get_history(
+    id: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[HistoryResponse]:
     try:
-        records = mongodb_service.get_history()
+        records = mongodb_service.get_history(user_id=current_user.id, report_id=id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
@@ -487,6 +490,12 @@ async def get_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Could not retrieve history: {exc}",
         ) from exc
+
+    if id and not records:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report with ID '{id}' not found.",
+        )
 
     return [HistoryResponse(**r) for r in records]
 
